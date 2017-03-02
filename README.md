@@ -6,8 +6,8 @@ collecting statistics on memcached slabs.
 ## Description
 
 The memcached slab collector will gather all of the statistics output by
-`stats slabs`.  By default, you can find the resulting stats in
-`servers.[hostname].memcached_slab.*`.
+`stats slabs` and `stats items`.  By default, you can find the resulting stats
+in `servers.[hostname].memcached_slab.*`.
 
 ## Installation
 

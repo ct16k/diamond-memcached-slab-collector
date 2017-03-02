@@ -35,12 +35,11 @@ def parse_slab_stats(slab_stats):
         'total_malloced': 1048512,
     }
     """
-    stats_dict = {}
-    stats_dict['slabs'] = defaultdict(lambda: {})
+    stats_dict = defaultdict(lambda: {})
 
     for line in slab_stats.splitlines():
         if line == 'END':
-            break
+            continue
         # e.g.: "STAT 1:chunks_per_page 10922"
         cmd, key, value = line.split(' ')
         if cmd != 'STAT':
@@ -48,9 +47,18 @@ def parse_slab_stats(slab_stats):
         # e.g.: "STAT active_slabs 1"
         if ":" not in key:
             stats_dict[key] = int(value)
-            continue
-        slab, key = key.split(':')
-        stats_dict['slabs'][int(slab)][key] = int(value)
+        else:
+            indexes = key.split(':')
+            if indexes[0].isdigit():
+                temp_dict = stats_dict['slabs']
+            else:
+                temp_dict = stats_dict
+            for key in indexes[:-1]:
+                if not key in temp_dict:
+                    temp_dict[key] = defaultdict(lambda: {})
+                temp_dict = temp_dict[key]
+
+            temp_dict[indexes[-1]] = int(value)
 
     return stats_dict
 
@@ -99,16 +107,18 @@ class MemcachedSlabCollector(diamond.collector.Collector):
         """Retrieve slab stats from memcached."""
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect((self.host, self.port))
-        s.send("stats slabs\n")
+        data = []
         try:
-            data = ""
-            while True:
-                data += s.recv(4096)
-                if data.endswith('END\r\n'):
-                    break
-            return data
+            for statcmd in ['stats slabs\n', 'stats items\n']:
+                s.send(statcmd)
+                while True:
+                    buf = s.recv(4096)
+                    data.append(buf)
+                    if buf.endswith('END\r\n'):
+                        break
         finally:
             s.close()
+        return ''.join(data)
 
     def collect(self):
         unparsed_slab_stats = self.get_slab_stats()
